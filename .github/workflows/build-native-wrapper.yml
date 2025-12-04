@@ -76,12 +76,15 @@ jobs:
             automake
             libtool
             gettext
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-jdk17-openjdk
           msystem: MINGW64
 
       - name: Configure and build with Java support (MSYS2)
         shell: msys2 {0}
         run: |
-          pacman -S --noconfirm make
           if [ -x ./autogen.sh ]; then
             ./autogen.sh
           fi
