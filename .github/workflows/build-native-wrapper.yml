@@ -35,13 +35,11 @@ jobs:
           echo 'Searching for *openconnect* libraries in workspace...'
           find . -maxdepth 8 -type f -name '*openconnect*' -print || true
 
-          LIB_PATH=$(find . -maxdepth 8 -type f -name 'libopenconnect-wrapper.so' | head -n 1)
-          if [ -z $LIB_PATH ]; then
-            LIB_PATH=$(find . -maxdepth 8 -type f -name 'openconnect-wrapper.so' | head -n 1)
-          fi
+          # The build creates a versioned .so like libopenconnect-wrapper.so.0.0.0
+          LIB_PATH=$(find . -maxdepth 8 -type f -name 'libopenconnect-wrapper.so*' | head -n 1)
 
-          if [ -z $LIB_PATH ]; then
-            echo 'libopenconnect-wrapper.so not found'
+          if [ -z "$LIB_PATH" ]; then
+            echo 'libopenconnect-wrapper.so* not found'
             exit 1
           fi
 
