@@ -90,28 +90,22 @@ jobs:
       - name: Configure and build with Java support (MSYS2)
         shell: msys2 {0}
         run: |
-          # Fix potential CRLF issues introduced by Windows checkout before running autogen.sh
-          if [ -f configure.ac ]; then
-            sed -i 's/\x0D$//' configure.ac
-          fi
-
-          # Use JAVA_HOME from setup-java, convert to MSYS path
-          if [ -z "$JAVA_HOME" ]; then
-            echo "JAVA_HOME is not set – setup-java step failed?"
-            exit 1
-          fi
-
+          # Determine MSYS2-style JAVA_HOME and configure JNI includes
           JAVA_HOME_MSYS=$(cygpath -u "$JAVA_HOME")
           echo "JAVA_HOME_MSYS = $JAVA_HOME_MSYS"
 
-          # Ensure JNI headers and winsock2.h are visible for C compilation
+          # Tell Autoconf to skip its broken detection for undeclared builtins
+          export ac_cv_c_undeclared_builtin_options="none needed"
+
+          # JNI / Winsock includes
           export CPPFLAGS="-I${JAVA_HOME_MSYS}/include -I${JAVA_HOME_MSYS}/include/win32 -include winsock2.h"
 
           if [ -x ./autogen.sh ]; then
             ./autogen.sh
           fi
 
-          ./configure --with-java || (test -f config.log && cat config.log; exit 1)
+          ./configure --with-java || { test -f config.log && cat config.log; exit 1; }
+
           make
 
       - name: Locate native wrapper library (DLL)
