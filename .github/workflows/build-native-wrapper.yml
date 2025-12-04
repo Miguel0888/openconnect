@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-native-wrapper:
-    name: Build native openconnect-wrapper
+  build-native-wrapper-linux:
+    name: Build native openconnect-wrapper (.so) on Linux
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -34,13 +34,12 @@ jobs:
           cd java
           ant
 
-      - name: Locate native wrapper library
-        id: findlib
+      - name: Locate native wrapper library (.so)
+        id: findlib_so
         run: |
-          echo 'Searching for *openconnect* libraries in workspace...'
+          echo 'Searching for *openconnect* libraries in workspace (Linux)...'
           find . -maxdepth 8 -type f -name '*openconnect*' -print || true
 
-          # The build creates a versioned .so like libopenconnect-wrapper.so.0.0.0
           LIB_PATH=$(find . -maxdepth 8 -type f -name 'libopenconnect-wrapper.so*' | head -n 1)
 
           if [ -z "$LIB_PATH" ]; then
@@ -51,9 +50,67 @@ jobs:
           echo Found lib at $LIB_PATH
           echo lib_path=$LIB_PATH >> $GITHUB_OUTPUT
 
-      - name: Upload native library as release asset
+      - name: Upload native library (.so) as release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.findlib.outputs.lib_path }}
+          files: ${{ steps.findlib_so.outputs.lib_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-native-wrapper-windows:
+    name: Build native openconnect-wrapper (DLL) on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkg-config
+            autoconf
+            automake
+            libtool
+            gettext
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-jdk17-openjdk
+          msystem: MINGW64
+
+      - name: Configure and build with Java support (MSYS2)
+        shell: msys2 {0}
+        run: |
+          if [ -x ./autogen.sh ]; then
+            ./autogen.sh
+          fi
+          ./configure --with-java
+          make
+
+      - name: Locate native wrapper library (DLL)
+        id: findlib_dll
+        shell: msys2 {0}
+        run: |
+          echo 'Searching for *openconnect* DLLs in workspace (Windows/MSYS2)...'
+          find . -maxdepth 8 -type f -name '*openconnect*' -print || true
+
+          DLL_PATH=$(find . -maxdepth 8 -type f -name '*openconnect-wrapper*.dll' | head -n 1)
+
+          if [ -z "$DLL_PATH" ]; then
+            echo '*openconnect-wrapper*.dll not found'
+            exit 1
+          fi
+
+          echo Found DLL at $DLL_PATH
+          echo dll_path=$DLL_PATH >> $GITHUB_OUTPUT
+
+      - name: Upload native library (DLL) as release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.findlib_dll.outputs.dll_path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
