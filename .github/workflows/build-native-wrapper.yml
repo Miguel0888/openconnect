@@ -1,8 +1,13 @@
 name: Build native openconnect-wrapper and upload release asset
+
 on:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
+
 jobs:
   build-native-wrapper:
     name: Build native openconnect-wrapper
