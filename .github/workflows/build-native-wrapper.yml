@@ -1,0 +1,38 @@
+name: Build native openconnect-wrapper and upload release asset
+on:
+  push:
+    tags:
+      - 'v*'
+jobs:
+  build-native-wrapper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout repository
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libtool pkg-config libssl-dev libxml2-dev liblz4-dev libproxy-dev openjdk-17-jdk ant
+      - name: Configure and build with Java support
+        run: |
+          if [ -x ./autogen.sh ]; then
+            ./autogen.sh
+          fi
+          ./configure --with-java
+          make
+      - name: Locate native wrapper library
+        id: findlib
+        run: |
+          LIB_PATH=$(find . -maxdepth 5 -type f -name libopenconnect-wrapper.so | head -n 1)
+          if [ -z $LIB_PATH ]; then
+            echo libopenconnect-wrapper.so not found
+            exit 1
+          fi
+          echo Found lib at $LIB_PATH
+          echo lib_path=$LIB_PATH >> $GITHUB_OUTPUT
+      - name: Upload native library as release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.findlib.outputs.lib_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
