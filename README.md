@@ -1,35 +1,81 @@
-# OpenConnect
+# OpenConnect - GitLab-Fork fuer Java/JNI-Wrapper
 
-OpenConnect is an SSL VPN client initially created to support [Cisco's AnyConnect SSL VPN](https://www.cisco.com/site/us/en/products/security/secure-client/index.html).
+Dieses Repository ist ein Fork/Mirror des offiziellen OpenConnect-Repositories auf GitLab:
 
-It has since been ported to support the Juniper SSL VPN (which is now known as [Pulse Connect Secure](https://www.ivanti.com/products/connect-secure-vpn)),
-the [Palo Alto Networks GlobalProtect SSL VPN](https://www.paloaltonetworks.com/features/vpn)
-the [F5 Big-IP SSL VPN](https://www.f5.com/products/big-ip-services),
-and the [Fortinet FortiGate SSL VPN](https://www.fortinet.com/products/vpn).</p>
+- Upstream: https://gitlab.com/openconnect/openconnect
 
-An openconnect VPN server (ocserv), which implements an improved version of the Cisco AnyConnect protocol, has also been written.
-You can find it on Gitlab at [https://gitlab.com/openconnect/ocserv](https://gitlab.com/openconnect/ocserv).
+Die eigentliche Entwicklung des OpenConnect-VPN-Clients findet weiterhin auf GitLab statt. Dieses GitHub-Repo dient vor allem dazu, den Java/JNI-Wrapper (openconnect-wrapper) zu bauen und als Artefakt z. B. ueber GitHub Packages in Java-Projekten wiederverwenden zu koennen.
 
-If you're looking for the standard `vpnc-script`, which is invoked by OpenConnect for routing and DNS setup,
-you can find it on Gitlab at [https://gitlab.com/openconnect/vpnc-scripts](https://gitlab.com/openconnect/vpnc-scripts).
+Lizenzhinweis: OpenConnect steht unter der LGPL 2.1. Die Lizenzbedingungen des Upstreams gelten auch fuer diesen Fork. Dies ist kein offizielles OpenConnect-Release.
 
-## Licence
+## Zweck dieses Forks
 
-OpenConnect is released under the [GNU Lesser Public License, version 2.1](https://www.infradead.org/openconnect/licence.html).
+- Bau der nativen JNI-Library openconnect-wrapper (z. B. openconnect-wrapper.dll / libopenconnect-wrapper.so).
+- Bau eines Java-JARs mit den Klassen aus java/src/org/infradead/libopenconnect.
+- Veroeffentlichung dieser Artefakte z. B. in GitHub Packages, damit sie in Java-Projekten als Maven- oder Gradle-Dependency genutzt werden koennen.
 
-## Documentation
+Die eigentliche C-Bibliothek libopenconnect und der CLI-Client gehoeren weiterhin zum Upstream-Projekt; dieser Fork konzentriert sich auf Build- und Packaging-Aspekte fuer Java.
 
-Documentation for OpenConnect is built from the `www/` directory in this repository, and lives in rendered form at [https://www.infradead.org/openconnect](https://www.infradead.org/openconnect).
+## Upstream-Updates aus GitLab einziehen
 
-Commonly-sought documentation:
+Remotes sind typischerweise so konfiguriert:
 
-* [Manual](https://www.infradead.org/openconnect/manual.html)
-* [Getting Started / Building](https://www.infradead.org/openconnect/building.html) (includes build instructions)
-* [Packages](https://www.infradead.org/openconnect/packages.html)
-   (including latest development build of the CLI [for 64-bit Windows](https://gitlab.com/openconnect/openconnect/-/jobs/artifacts/master/raw/openconnect-installer-MinGW64-GnuTLS.exe?job=MinGW64/GnuTLS),
-   and [for 32-bit Windows](https://gitlab.com/openconnect/openconnect/-/jobs/artifacts/master/raw/openconnect-installer-MinGW32-GnuTLS.exe?job=MinGW32/GnuTLS))
-* [Contribute](https://www.infradead.org/openconnect/contribute.html)
-* [Mailing list / Help](https://www.infradead.org/openconnect/mail.html)
-* [GUIs / Front Ends](https://www.infradead.org/openconnect/gui.html)
-* [VPN Server / ocserv](https://www.infradead.org/ocserv/)
-* [Protocol-specific details](https://www.infradead.org/openconnect/protocols.html)
+```bash
+git remote -v
+# origin   https://github.com/Miguel0888/openconnect.git (fetch)
+# origin   https://github.com/Miguel0888/openconnect.git (push)
+# upstream https://gitlab.com/openconnect/openconnect.git (fetch)
+# upstream https://gitlab.com/openconnect/openconnect.git (push)
+```
+
+### 1. Neueste Aenderungen vom Upstream holen
+
+```bash
+git fetch upstream
+git fetch upstream --tags
+```
+
+### 2. Lokalen Branch aktualisieren
+
+```bash
+git checkout master
+git merge upstream/master
+# alternativ:
+# git rebase upstream/master
+```
+
+### 3. Mirror nach GitHub pushen
+
+```bash
+git push origin master
+git push origin --tags
+```
+
+Damit bleibt dieses GitHub-Repository eng am offiziellen Upstream ausgerichtet.
+
+## Nutzung des Java/JNI-Wrappers (Ueberblick)
+
+Im Verzeichnis java/ befindet sich ein JNI-Interface-Layer fuer libopenconnect sowie Beispielcode (LibTest).
+
+Typischer Build-Ablauf (vereinfacht):
+
+```bash
+./autogen.sh
+./configure --with-java
+make
+cd java
+ant
+```
+
+Danach befinden sich in ..libs die nativen Libraries (z. B. openconnect-wrapper.dll / libopenconnect-wrapper.so) und in java/dist das Java-JAR.
+
+Vor der Verwendung von LibOpenConnect muss die native Library geladen sein, z. B. ueber java.library.path oder einen eigenen Loader, der die DLL oder SO aus einem JAR entpackt und per System.load aufruft.
+
+## Original-Dokumentation
+
+Die vollstaendige Dokumentation (Features, Protokolle, Installationsanleitungen usw.) befindet sich weiterhin im Upstream-Repository und auf der Projekt-Webseite:
+
+- Upstream-Repo (GitLab): https://gitlab.com/openconnect/openconnect
+- Projektseite: https://www.infradead.org/openconnect/
+
+Dieses GitHub-Repository fokussiert sich primaer auf den Java/JNI-Wrapper und die Integration in Java-Build- und Releaseprozesse.
