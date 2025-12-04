@@ -93,7 +93,7 @@ jobs:
             ./autogen.sh
           fi
 
-          ./configure --with-java || (test -f config.log && cat config.log; exit 1)
+          ./configure --with-java --with-vpnc-script=/etc/vpnc/vpnc-script || (test -f config.log && cat config.log; exit 1)
           make
 
       - name: Locate native wrapper library (DLL)
