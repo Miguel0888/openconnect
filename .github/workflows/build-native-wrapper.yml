@@ -21,25 +21,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential autoconf automake libtool pkg-config libssl-dev libxml2-dev liblz4-dev libproxy-dev gettext openjdk-17-jdk ant
 
-      - name: Configure and build with Java support (MSYS2)
-        shell: msys2 {0}
+      - name: Configure and build with Java support
         run: |
-          # Determine MSYS2-style JAVA_HOME and configure JNI includes
-          JAVA_HOME_MSYS=$(cygpath -u "$JAVA_HOME")
-          echo "JAVA_HOME_MSYS = $JAVA_HOME_MSYS"
-
-          # Tell Autoconf to skip its broken detection for undeclared builtins
-          export ac_cv_c_undeclared_builtin_options="none needed"
-
-          # JNI / Winsock includes
-          export CPPFLAGS="-I${JAVA_HOME_MSYS}/include -I${JAVA_HOME_MSYS}/include/win32 -include winsock2.h"
-
           if [ -x ./autogen.sh ]; then
             ./autogen.sh
           fi
-
-          ./configure --with-java || { test -f config.log && cat config.log; exit 1; }
-
+          ./configure --with-java --with-vpnc-script=/etc/vpnc/vpnc-script
           make
 
       - name: Build Java JNI wrapper
