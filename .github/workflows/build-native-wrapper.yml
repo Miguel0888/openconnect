@@ -84,10 +84,9 @@ jobs:
       - name: Configure and build with Java support (MSYS2)
         shell: msys2 {0}
         run: |
-          if [ -x ./autogen.sh ]; then
-            ./autogen.sh
-          fi
-          ./configure --with-java
+          # Do not run ./autogen.sh here; MSYS2's autoconf 2.72 currently breaks configure.ac
+          # Use the pre-generated configure script from the repository instead.
+          ./configure --with-java || (test -f config.log && cat config.log; exit 1)
           make
 
       - name: Locate native wrapper library (DLL)
