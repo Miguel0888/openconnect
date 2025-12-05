@@ -89,12 +89,23 @@ jobs:
           echo "JAVA_HOME_MSYS = $JAVA_HOME_MSYS"
           export JAVA_HOME="$JAVA_HOME_MSYS"
           export CPPFLAGS="-I$JAVA_HOME_MSYS/include -I$JAVA_HOME_MSYS/include/win32 -include winsock2.h"
-          # Map getuid() to 0 on Windows to avoid implicit declaration error in JNI
-          export CPPFLAGS="$CPPFLAGS -Dgetuid()=0"
+
+          # Provide getuid() stub for Windows so JNI code compiles
+          cat > getuid_stub.h << 'EOF'
+          #ifndef GETUID_STUB_H
+          #define GETUID_STUB_H
+          /* Provide dummy getuid() on Windows for JNI build */
+          static inline int getuid(void) { return 0; }
+          #endif
+          EOF
+
+          # Force-include the stub header in all compilations
+          export CPPFLAGS="$CPPFLAGS -include $PWD/getuid_stub.h"
 
           # Ensure vpnc-script is available inside MSYS2
           mkdir -p /etc/vpnc
           cp ./ci/vpnc-script /etc/vpnc/vpnc-script
+          # Normalize line endings in vpnc-script (avoid CRLF issues)
           sed -i 's/\r$//' /etc/vpnc/vpnc-script
           chmod +x /etc/vpnc/vpnc-script
 
