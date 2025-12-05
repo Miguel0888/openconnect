@@ -79,6 +79,7 @@ jobs:
             mingw-w64-x86_64-libxml2
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-zlib
+            jq
           msystem: MINGW64
 
       - name: Configure and build with Java support (MSYS2)
