@@ -121,8 +121,9 @@ jobs:
           # Work around Autoconf 2.72 undeclared builtins check on MinGW and use vpnc-script
           ac_cv_c_undeclared_builtin_options=none ./configure --with-java --with-vpnc-script=/etc/vpnc/vpnc-script || (test -f config.log && cat config.log; exit 1)
 
-          # Build without treating warnings as errors on Windows, and add -no-undefined only for linking
-          make LDFLAGS='-no-undefined' AM_CFLAGS='-Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -Wformat-nonliteral -Wformat-security -Winit-self -Wmissing-declarations -Wmissing-include-dirs -Wnested-externs -Wparentheses -Wpointer-arith -Wunused-function -Wwrite-strings'
+          # Build only JNI wrapper library, skip openconnect.exe and vpnc-script-win.js
+          make libopenconnect-wrapper.la \
+            AM_CFLAGS='-Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -Wformat-nonliteral -Wformat-security -Winit-self -Wmissing-declarations -Wmissing-include-dirs -Wnested-externs -Wparentheses -Wpointer-arith -Wunused-function -Wwrite-strings'
 
       - name: Locate native wrapper library (DLL)
         id: findlib_dll
