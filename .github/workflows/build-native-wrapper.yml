@@ -102,9 +102,6 @@ jobs:
           # Force-include the stub header in all compilations
           export CPPFLAGS="$CPPFLAGS -include $PWD/getuid_stub.h"
 
-          # 👉 HIER NEU: LDFLAGS für libtool setzen
-          export LDFLAGS="-no-undefined"
-
           # Ensure vpnc-script is available inside MSYS2
           mkdir -p /etc/vpnc
           cp ./ci/vpnc-script /etc/vpnc/vpnc-script
