@@ -89,11 +89,12 @@ jobs:
           echo "JAVA_HOME_MSYS = $JAVA_HOME_MSYS"
           export JAVA_HOME="$JAVA_HOME_MSYS"
           export CPPFLAGS="-I$JAVA_HOME_MSYS/include -I$JAVA_HOME_MSYS/include/win32 -include winsock2.h"
+          # Map getuid() to 0 on Windows to avoid implicit declaration error in JNI
+          export CPPFLAGS="$CPPFLAGS -Dgetuid()=0"
 
           # Ensure vpnc-script is available inside MSYS2
           mkdir -p /etc/vpnc
           cp ./ci/vpnc-script /etc/vpnc/vpnc-script
-          # Normalize line endings in vpnc-script (avoid CRLF issues)
           sed -i 's/\r$//' /etc/vpnc/vpnc-script
           chmod +x /etc/vpnc/vpnc-script
 
@@ -109,7 +110,7 @@ jobs:
           # Work around Autoconf 2.72 undeclared builtins check on MinGW and use vpnc-script
           ac_cv_c_undeclared_builtin_options=none ./configure --with-java --with-vpnc-script=/etc/vpnc/vpnc-script || (test -f config.log && cat config.log; exit 1)
 
-          # Build without treating warnings as errors on Windows (avoid pointer-to-int-cast and getuid warnings)
+          # Build without treating warnings as errors on Windows
           make AM_CFLAGS='-Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -Wformat-nonliteral -Wformat-security -Winit-self -Wmissing-declarations -Wmissing-include-dirs -Wnested-externs -Wparentheses -Wpointer-arith -Wunused-function -Wwrite-strings'
 
       - name: Locate native wrapper library (DLL)
