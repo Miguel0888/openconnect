@@ -413,10 +413,16 @@ jobs:
             exit 1
           fi
 
-          LINUX_JAR=$(ls artifacts/*linux-x86_64*.jar | head -n 1)
-          WINDOWS_JAR=$(ls artifacts/*windows-x86_64*.jar | head -n 1)
+          LINUX_JAR=$(ls artifacts/*linux-x86_64*.jar | head -n 1 || true)
+          WINDOWS_JAR=$(ls artifacts/*windows-x86_64*.jar | head -n 1 || true)
 
-          # 1) Publish Java bindings artifact (platform independent)
+          if [ -z "$LINUX_JAR" ] || [ -z "$WINDOWS_JAR" ]; then
+            echo "Native jars not found in artifacts/"
+            ls -la artifacts || true
+            exit 1
+          fi
+
+          # 1) Publish Java bindings (creates its own POM)
           mvn -B deploy:deploy-file \
             -Durl="${REPO_URL}" \
             -DrepositoryId=github \
@@ -427,7 +433,8 @@ jobs:
             -Dfile="${JAVA_JAR}" \
             -DgeneratePom=true
 
-          # 2) Publish native jars (classifiers); no POM upload again
+          # 2) Publish native LINUX jar (IMPORTANT: generate the POM here!)
+          # This creates openconnect-wrapper-native-${VERSION}.pom which Gradle needs.
           mvn -B deploy:deploy-file \
             -Durl="${REPO_URL}" \
             -DrepositoryId=github \
@@ -437,8 +444,9 @@ jobs:
             -Dpackaging=jar \
             -Dclassifier=linux-x86_64 \
             -Dfile="${LINUX_JAR}" \
-            -DgeneratePom=false
+            -DgeneratePom=true
 
+          # 3) Publish native WINDOWS jar (no POM again)
           mvn -B deploy:deploy-file \
             -Durl="${REPO_URL}" \
             -DrepositoryId=github \
