@@ -1480,6 +1480,15 @@ JNIEXPORT void JNICALL Java_org_infradead_libopenconnect_LibOpenConnect_setUserg
 	SET_STRING_END();
 }
 
+/* Correct spelling for Java bindings that declare native setUseragent(String) */
+JNIEXPORT void JNICALL Java_org_infradead_libopenconnect_LibOpenConnect_setUseragent(
+	JNIEnv *jenv, jobject jobj, jstring jarg)
+{
+	SET_STRING_START_VOID()
+	openconnect_set_useragent(ctx->vpninfo, arg);
+	SET_STRING_END();
+}
+
 JNIEXPORT void JNICALL Java_org_infradead_libopenconnect_LibOpenConnect_setUrlpath(
 	JNIEnv *jenv, jobject jobj, jstring jarg)
 {
