@@ -135,6 +135,7 @@ jobs:
           install: >-
             base-devel
             mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-binutils
             mingw-w64-x86_64-pkg-config
             autoconf
             automake
@@ -202,41 +203,111 @@ jobs:
           Write-Host "Found wrapper DLL at $($dll.FullName)"
           "dll_path=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Collect runtime DLL dependencies (MSYS2 -> Windows paths)
+      - name: Collect runtime DLL dependencies (robust via objdump)
         shell: msys2 {0}
         run: |
-          set -e
+          set -euo pipefail
 
-          WRAPPER=$(find . -maxdepth 8 -type f -name '*openconnect-wrapper*.dll' | head -n 1)
-          if [ -z "$WRAPPER" ]; then
-            echo "Wrapper DLL not found for dependency scan"
+          echo "=== Collect runtime DLL dependencies (objdump) ==="
+
+          # Use the already detected wrapper path from the PowerShell step (Windows path)
+          WRAPPER_WIN='${{ steps.findlib_dll.outputs.dll_path }}'
+          if [ -z "$WRAPPER_WIN" ]; then
+            echo "Wrapper DLL path output is empty"
+            exit 1
+          fi
+
+          # Convert to MSYS path
+          WRAPPER="$(cygpath -u "$WRAPPER_WIN")"
+          if [ ! -f "$WRAPPER" ]; then
+            echo "Wrapper DLL does not exist at MSYS path: $WRAPPER"
+            exit 1
+          fi
+
+          if ! command -v objdump >/dev/null 2>&1; then
+            echo "objdump not found. Ensure mingw-w64-x86_64-binutils is installed."
             exit 1
           fi
 
           OUTFILE="$(cygpath -u "$GITHUB_WORKSPACE")/deps_winpaths.txt"
           : > "$OUTFILE"
 
-          # 1) ldd: copy dependencies that live in /mingw64/bin
-          # ldd output: <name> => /mingw64/bin/<dll> (0x....)
-          ldd "$WRAPPER" 2>/dev/null | awk '{print $3}' | grep -E '^/mingw64/bin/.*\.dll$' | while read -r p; do
-            cygpath -w "$p" >> "$OUTFILE"
-          done
+          echo "Wrapper (MSYS): $WRAPPER"
+          echo "Outfile: $OUTFILE"
 
-          # 2) ensure libopenconnect itself is included if it was built as a DLL in tree
-          find . -maxdepth 8 -type f -iname 'libopenconnect-*.dll' | while read -r p; do
-            cygpath -w "$p" >> "$OUTFILE"
-          done
+          # DLLs we never want to copy (system DLLs)
+          is_system_dll() {
+            case "$1" in
+              KERNEL32.dll|USER32.dll|GDI32.dll|ADVAPI32.dll|SHELL32.dll|OLE32.dll|OLEAUT32.dll|WS2_32.dll|CRYPT32.dll|IPHLAPI.dll|COMDLG32.dll|COMCTL32.dll|WINMM.dll|VERSION.dll|SHLWAPI.dll|MSVCRT.dll|ntdll.dll|bcrypt.dll|secur32.dll)
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
 
-          # 3) also include common MinGW runtime DLLs when present (some setups don’t show them in ldd)
+          # Read imported DLL names from PE header
+          DLL_NAMES="$(objdump -p "$WRAPPER" | awk '/DLL Name/ {print $3}')"
+          echo "Imported DLL names:"
+          echo "$DLL_NAMES" | sed 's/^/  - /'
+
+          # Resolve imported DLLs to actual files and write Windows paths
+          while IFS= read -r name; do
+            [ -z "$name" ] && continue
+
+            if is_system_dll "$name"; then
+              continue
+            fi
+
+            # 1) Prefer MSYS2 MinGW runtime folder
+            if [ -f "/mingw64/bin/$name" ]; then
+              cygpath -w "/mingw64/bin/$name" >> "$OUTFILE"
+              continue
+            fi
+
+            # 2) Look in the wrapper directory
+            WRAPPER_DIR="$(dirname "$WRAPPER")"
+            if [ -f "$WRAPPER_DIR/$name" ]; then
+              cygpath -w "$WRAPPER_DIR/$name" >> "$OUTFILE"
+              continue
+            fi
+
+            # 3) Search in build tree (best-effort)
+            FOUND="$(find . -maxdepth 12 -type f -iname "$name" | head -n 1 || true)"
+            if [ -n "$FOUND" ] && [ -f "$FOUND" ]; then
+              cygpath -w "$FOUND" >> "$OUTFILE"
+              continue
+            fi
+
+            echo "WARN: Could not resolve dependency: $name"
+          done << EOF
+          $DLL_NAMES
+          EOF
+
+          # Ensure libopenconnect dll built in-tree is included (if present)
+          find . -maxdepth 12 -type f -iname 'libopenconnect-*.dll' -print0 2>/dev/null | while IFS= read -r -d '' p; do
+            cygpath -w "$p" >> "$OUTFILE"
+          done || true
+
+          # Always include common MinGW runtime dlls when present
           for p in /mingw64/bin/libgcc_s_seh-1.dll /mingw64/bin/libstdc++-6.dll /mingw64/bin/libwinpthread-1.dll; do
             if [ -f "$p" ]; then
               cygpath -w "$p" >> "$OUTFILE"
             fi
           done
 
-          sort -u -o "$OUTFILE" "$OUTFILE"
-          echo "Dependency list written to $OUTFILE"
-          cat "$OUTFILE" || true
+          # Deduplicate
+          if [ -f "$OUTFILE" ]; then
+            sort -u -o "$OUTFILE" "$OUTFILE" || true
+          fi
+
+          echo "=== deps_winpaths.txt content ==="
+          if [ -s "$OUTFILE" ]; then
+            cat "$OUTFILE"
+          else
+            echo "NOTE: deps_winpaths.txt is empty. Wrapper may depend only on system DLLs, or resolution failed."
+          fi
 
       - name: Create Maven jar (windows-x86_64) incl. dependencies
         id: package_windows
