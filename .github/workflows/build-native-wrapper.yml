@@ -144,22 +144,18 @@ jobs:
           # Build without treating warnings as errors on Windows, and add -no-undefined only for linking
           make LDFLAGS='-no-undefined' AM_CFLAGS='-Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter -Wformat-nonliteral -Wformat-security -Winit-self -Wmissing-declarations -Wmissing-include-dirs -Wnested-externs -Wparentheses -Wpointer-arith -Wunused-function -Wwrite-strings'
 
-      - name: Locate native wrapper library (DLL)
+      - name: Locate native wrapper library (DLL) - PowerShell
         id: findlib_dll
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          echo 'Searching for *openconnect* DLLs in workspace (Windows/MSYS2)...'
-          find . -maxdepth 8 -type f -name '*openconnect*' -print || true
-
-          DLL_PATH=$(find . -maxdepth 8 -type f -name '*openconnect-wrapper*.dll' | head -n 1)
-
-          if [ -z "$DLL_PATH" ]; then
-            echo '*openconnect-wrapper*.dll not found'
+          $dll = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -File -Filter "*openconnect-wrapper*.dll" | Select-Object -First 1
+          if (-not $dll) {
+            Write-Error "No *openconnect-wrapper*.dll found in workspace"
             exit 1
-          fi
+          }
 
-          echo "Found DLL at $DLL_PATH"
-          echo "dll_path=$DLL_PATH" >> "$GITHUB_OUTPUT"
+          Write-Host "Found DLL at $($dll.FullName)"
+          "dll_path=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Create Maven jar (windows-x86_64)
         id: package_windows
@@ -169,16 +165,16 @@ jobs:
           $classifier = "windows-x86_64"
 
           New-Item -ItemType Directory -Force -Path "dist\natives\$classifier" | Out-Null
+          Copy-Item "${{ steps.findlib_dll.outputs.dll_path }}" "dist\natives\$classifier\libopenconnect-wrapper.dll" -Force
 
-          # Convert MSYS path to Windows path
-          $msysPath = "${{ steps.findlib_dll.outputs.dll_path }}"
-          $dllWinPath = & "${env:ProgramFiles}\msys64\usr\bin\cygpath.exe" -w $msysPath
+          $jarName = "openconnect-wrapper-native-$version-$classifier.jar"
 
-          Copy-Item $dllWinPath "dist\natives\$classifier\libopenconnect-wrapper.dll" -Force
+          if (Test-Path $jarName) { Remove-Item $jarName -Force }
 
-          & "$env:JAVA_HOME\bin\jar.exe" cf "openconnect-wrapper-native-$version-$classifier.jar" -C dist .
+          Compress-Archive -Path "dist\*" -DestinationPath $jarName -Force
 
-          "jar_path=openconnect-wrapper-native-$version-$classifier.jar" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "jar_path=$jarName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      
 
       - name: Upload Maven jar as workflow artifact (windows)
         uses: actions/upload-artifact@v4
