@@ -53,13 +53,46 @@ static void throw_excep(JNIEnv *jenv, const char *exc, int line)
 
 #define OOM(jenv)	throw_excep(jenv, "java/lang/OutOfMemoryError", __LINE__)
 
+static jfieldID g_fid_libctx = NULL;
+
+static jfieldID require_libctx_field(JNIEnv *jenv, jobject jobj)
+{
+	if (g_fid_libctx)
+		return g_fid_libctx;
+
+	jclass jcls = (*jenv)->GetObjectClass(jenv, jobj);
+	if (!jcls)
+		return NULL;
+
+	/* "J" = long in Java */
+	g_fid_libctx = (*jenv)->GetFieldID(jenv, jcls, "libctx", "J");
+	return g_fid_libctx;
+}
+
+static void set_native_ctx(JNIEnv *jenv, jobject jobj, void *ctx)
+{
+	jfieldID fid = require_libctx_field(jenv, jobj);
+	if (!fid)
+		return;
+
+	/* IMPORTANT: Never cast pointers to C long on Windows (LLP64). Use intptr_t -> jlong. */
+	jlong value = (jlong)(intptr_t)ctx;
+	(*jenv)->SetLongField(jenv, jobj, fid, value);
+}
+
+static void *get_native_ctx(JNIEnv *jenv, jobject jobj)
+{
+	jfieldID fid = require_libctx_field(jenv, jobj);
+	if (!fid)
+		return NULL;
+
+	jlong value = (*jenv)->GetLongField(jenv, jobj, fid);
+	return (void *)(intptr_t)value;
+}
+
 static struct libctx *getctx(JNIEnv *jenv, jobject jobj)
 {
-	jclass jcls = (*jenv)->GetObjectClass(jenv, jobj);
-	jfieldID jfld = (*jenv)->GetFieldID(jenv, jcls, "libctx", "J");
-	if (!jfld)
-		return NULL;
-	return (void *)(unsigned long)(*jenv)->GetLongField(jenv, jobj, jfld);
+	return (struct libctx *)get_native_ctx(jenv, jobj);
 }
 
 /*
@@ -650,7 +683,7 @@ JNIEXPORT jlong JNICALL Java_org_infradead_libopenconnect_LibOpenConnect_init(
 
 	ctx->loglevel = PRG_DEBUG;
 
-	return (jlong)(unsigned long)ctx;
+	return (jlong)(intptr_t)ctx;
 
 bad_free_vpninfo:
 	openconnect_vpninfo_free(ctx->vpninfo);
@@ -668,13 +701,25 @@ bad:
 JNIEXPORT void JNICALL Java_org_infradead_libopenconnect_LibOpenConnect_free(
 	JNIEnv *jenv, jobject jobj)
 {
-	struct libctx *ctx = getctx(jenv, jobj);
+	struct libctx *ctx = (struct libctx *)get_native_ctx(jenv, jobj);
+
+	/* Make free() idempotent and protect against re-entrancy/double-free. */
+	set_native_ctx(jenv, jobj, NULL);
 
 	if (!ctx)
 		return;
-	openconnect_vpninfo_free(ctx->vpninfo);
-	(*jenv)->DeleteGlobalRef(jenv, ctx->async_lock);
-	(*jenv)->DeleteGlobalRef(jenv, ctx->jobj);
+	if (ctx->vpninfo) {
+		openconnect_vpninfo_free(ctx->vpninfo);
+		ctx->vpninfo = NULL;
+	}
+	if (ctx->async_lock) {
+		(*jenv)->DeleteGlobalRef(jenv, ctx->async_lock);
+		ctx->async_lock = NULL;
+	}
+	if (ctx->jobj) {
+		(*jenv)->DeleteGlobalRef(jenv, ctx->jobj);
+		ctx->jobj = NULL;
+	}
 	free(ctx);
 }
 
